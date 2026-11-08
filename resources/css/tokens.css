@@ -1,0 +1,81 @@
+/*
+ * ORBIT design tokens — source of truth: docs/DESIGN_SYSTEM.md §2–3, §5.
+ * Dark values are selected for the dark surface, not inverted.
+ */
+:root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #f1f3f6;
+    --surface-hover: #f3f4f7;
+    --border: #e5e7eb;
+    --border-strong: #d2d6de;
+    --text: #172033;
+    --text-secondary: #697386;
+    --text-muted: #8a93a3;
+
+    --accent: #536dfe;
+    --accent-hover: #435be8;
+    --accent-subtle: #eef1ff;
+    --accent-ink: #3b52d9;
+    --positive: #16845b;
+    --positive-subtle: #e8f5ef;
+    --negative: #d94c4c;
+    --negative-subtle: #fdeded;
+    --warning: #c58a27;
+    --warning-subtle: #fbf3e4;
+
+    /* Validated categorical palette (fixed order, never cycled). */
+    --series-1: #536dfe;
+    --series-2: #e8743b;
+    --series-3: #19a08a;
+    --series-4: #d6a21e;
+    --series-5: #c9529a;
+    --series-6: #2f8f2f;
+    --series-7: #8e6bd8;
+    --series-other: #aeb5c2;
+
+    --elevation-1: 0 1px 2px rgb(16 24 40 / 0.05);
+    --elevation-2: 0 8px 24px -4px rgb(16 24 40 / 0.12), 0 2px 6px rgb(16 24 40 / 0.06);
+    --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+
+    color-scheme: light;
+}
+
+.dark {
+    --bg: #10141d;
+    --surface: #171d29;
+    --surface-raised: #1d2433;
+    --surface-sunken: #0c1018;
+    --surface-hover: #1f2737;
+    --border: #283142;
+    --border-strong: #364156;
+    --text: #e8ecf4;
+    --text-secondary: #9aa4b6;
+    --text-muted: #6f7a8e;
+
+    --accent: #6f86ff;
+    --accent-hover: #8598ff;
+    --accent-subtle: #1e2647;
+    --accent-ink: #a9b6ff;
+    --positive: #3db38a;
+    --positive-subtle: #12291f;
+    --negative: #f07070;
+    --negative-subtle: #331a1d;
+    --warning: #e0a645;
+    --warning-subtle: #2e2412;
+
+    --series-1: #6f86ff;
+    --series-2: #d46a35;
+    --series-3: #1c9a83;
+    --series-4: #b08826;
+    --series-5: #cc5c9c;
+    --series-6: #3f933f;
+    --series-7: #957de0;
+    --series-other: #4e596c;
+
+    --elevation-1: 0 1px 2px rgb(0 0 0 / 0.3);
+    --elevation-2: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.3);
+
+    color-scheme: dark;
+}
