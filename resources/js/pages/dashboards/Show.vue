@@ -129,7 +129,10 @@ const deleteOpen = ref(false);
 const visibilityLabel = { private: 'Private', organization: 'Organization', shared: 'Shared' } as const;
 const widgetMeta = (w: Widget) => {
     const metric = props.catalog.metrics.find((m) => m.key === w.config.metric)?.label ?? w.config.metric;
-    return w.config.range.mode === 'fixed' ? `${metric} · ${props.options.presets.find((p) => p.value === w.config.range.preset)?.label ?? ''}` : metric;
+    const range = w.config.range.mode === 'fixed' ? props.options.presets.find((p) => p.value === w.config.range.preset)?.label ?? '' : '';
+    // Only say what the title does not already say.
+    const parts = [w.title.toLowerCase().includes(metric.toLowerCase()) ? '' : metric, w.title.toLowerCase().includes(range.toLowerCase()) ? '' : range];
+    return parts.filter(Boolean).join(' · ');
 };
 </script>
 
@@ -227,7 +230,7 @@ const widgetMeta = (w: Widget) => {
         <!-- Small screens: read-only stack in layout order -->
         <div v-else class="flex flex-col gap-4">
             <p v-if="dashboard.can.update" class="text-xs text-secondary">Editing the layout is available on larger screens.</p>
-            <section v-for="w in stacked" :key="w.id" class="flex flex-col rounded-lg border border-border bg-surface" :style="{ height: `${Math.max(2, w.h) * (ROW_HEIGHT - 8)}px` }" :aria-label="w.title">
+            <section v-for="w in stacked" :key="w.id" class="flex flex-col rounded-lg border border-border bg-surface" :style="{ height: `${Math.max(3, w.h) * 52}px` }" :aria-label="w.title">
                 <header class="flex h-10 shrink-0 items-center border-b border-border px-3"><h2 class="truncate text-sm font-semibold text-ink">{{ w.title }}</h2></header>
                 <div class="min-h-0 flex-1 p-3"><WidgetView :widget="w" :data-url="dataUrl(w.id)" :query="query" /></div>
             </section>

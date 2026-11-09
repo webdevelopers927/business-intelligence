@@ -2,7 +2,7 @@
 
 Business intelligence for multi-branch organizations: import business data, analyze performance, build dashboards and reports, monitor KPIs.
 
-> Status: **Phase 4 (analytics) complete.** Auth, multi-tenancy, data sources, the CSV/Excel import engine, the analytics engine, the executive dashboard and drill-down explorer work end to end on a seeded demo organization. The custom dashboard builder is next. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+> Status: **Phase 7 (advanced intelligence) complete.** Auth, multi-tenancy, data import, the analytics engine, the executive dashboard, the explorer, custom dashboards and metric formulas, reports with CSV/Excel/PDF export and schedules, alerts, the activity log, anomaly detection, forecasting and the AI analyst work end to end on a seeded demo organization. The AI analyst needs an `ANTHROPIC_API_KEY` in `.env` (see `.env.example`); without one it shows a setup screen. The marketing site and production hardening are next. See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## Demo
 
@@ -15,7 +15,7 @@ Business intelligence for multi-branch organizations: import business data, anal
 | Analyst | `analyst@nexora.test` |
 | Viewer | `viewer@nexora.test` |
 
-Imports run on the queue, so keep a worker running (`php artisan queue:listen`, or `composer dev`).
+Imports and large exports run on the queue, and alerts/scheduled reports need the scheduler: keep `php artisan queue:listen` and `php artisan schedule:work` running (`composer dev` starts both).
 
 ## Documentation
 
@@ -42,7 +42,7 @@ copy .env.example .env
 php artisan key:generate
 New-Item database\database.sqlite -ItemType File   # SQLite during development
 php artisan migrate
-composer dev        # server + queue worker + Vite
+composer dev        # server + queue worker + scheduler + Vite
 ```
 
 Open http://127.0.0.1:8000 and create an account.

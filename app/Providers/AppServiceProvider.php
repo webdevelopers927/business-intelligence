@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Ai\AnthropicLlmClient;
+use App\Domain\Ai\LlmClient;
 use App\Domain\Analytics\Metrics\MetricRegistry;
 use App\Domain\Audit\AuditLogger;
 use App\Domain\DataSources\HostGuard;
@@ -11,9 +13,12 @@ use App\Models\User;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
         // every consumer (engine, services) at once.
         $this->app->scoped(MetricRegistry::class);
         $this->app->bind(HostGuard::class, fn () => HostGuard::fromConfig());
+        $this->app->bind(LlmClient::class, AnthropicLlmClient::class);
     }
 
     public function boot(): void
@@ -34,6 +40,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerPermissionGates();
         $this->registerAuthAuditing();
+
+        // AI questions cost money: cap them per user per hour.
+        RateLimiter::for('ai', fn (Request $request) => Limit::perHour((int) config('orbit.ai.hourly_limit', 30))
+            ->by('ai:'.($request->user()?->getAuthIdentifier() ?? $request->ip()))
+            ->response(fn () => response()->json(['message' => 'You have reached the hourly limit for AI questions. Please try again later.'], 429)));
     }
 
     /**

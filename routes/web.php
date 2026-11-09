@@ -1,13 +1,18 @@
 <?php
 
+use App\Http\Controllers\App\ActivityController;
+use App\Http\Controllers\App\AlertController;
+use App\Http\Controllers\App\AssistantController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\DashboardsController;
 use App\Http\Controllers\App\DashboardWidgetController;
 use App\Http\Controllers\App\DataSourceController;
 use App\Http\Controllers\App\ExploreController;
 use App\Http\Controllers\App\ImportController;
+use App\Http\Controllers\App\InsightsController;
 use App\Http\Controllers\App\MetricController;
 use App\Http\Controllers\App\NotificationController;
+use App\Http\Controllers\App\ReportController;
 use App\Http\Controllers\AppEntryController;
 use App\Http\Controllers\InvitationAcceptController;
 use App\Http\Controllers\OnboardingController;
@@ -71,6 +76,40 @@ Route::middleware('auth')->group(function () {
         Route::get('/metrics/{metric}/edit', [MetricController::class, 'edit'])->name('metrics.edit');
         Route::patch('/metrics/{metric}', [MetricController::class, 'update'])->name('metrics.update');
         Route::delete('/metrics/{metric}', [MetricController::class, 'destroy'])->name('metrics.destroy');
+
+        // Reports (preview/export are stateless; saved reports carry schedules)
+        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/new', [ReportController::class, 'builder'])->name('reports.create');
+        Route::post('/reports/preview', [ReportController::class, 'preview'])->name('reports.preview');
+        Route::post('/reports/export', [ReportController::class, 'export'])->name('reports.export');
+        Route::get('/reports/runs/{run}/download', [ReportController::class, 'download'])->name('reports.runs.download');
+        Route::post('/reports', [ReportController::class, 'store'])->name('reports.store');
+        Route::get('/reports/{report}', [ReportController::class, 'builder'])->name('reports.show');
+        Route::patch('/reports/{report}', [ReportController::class, 'update'])->name('reports.update');
+        Route::delete('/reports/{report}', [ReportController::class, 'destroy'])->name('reports.destroy');
+        Route::put('/reports/{report}/schedule', [ReportController::class, 'schedule'])->name('reports.schedule');
+        Route::delete('/reports/{report}/schedule', [ReportController::class, 'unschedule'])->name('reports.unschedule');
+
+        // Insights & AI analyst
+        Route::get('/insights', [InsightsController::class, 'index'])->name('insights.index');
+        Route::post('/insights/scan', [InsightsController::class, 'scan'])->name('insights.scan');
+        Route::get('/assistant', [AssistantController::class, 'index'])->name('assistant.index');
+        Route::get('/assistant/{conversation}', [AssistantController::class, 'index'])->name('assistant.show');
+        Route::post('/assistant/messages', [AssistantController::class, 'store'])->middleware('throttle:ai')->name('assistant.messages');
+        Route::delete('/assistant/{conversation}', [AssistantController::class, 'destroy'])->name('assistant.destroy');
+
+        // Alerts
+        Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
+        Route::get('/alerts/create', [AlertController::class, 'create'])->name('alerts.create');
+        Route::post('/alerts', [AlertController::class, 'store'])->name('alerts.store');
+        Route::get('/alerts/{alert}', [AlertController::class, 'show'])->name('alerts.show');
+        Route::get('/alerts/{alert}/edit', [AlertController::class, 'edit'])->name('alerts.edit');
+        Route::patch('/alerts/{alert}', [AlertController::class, 'update'])->name('alerts.update');
+        Route::post('/alerts/{alert}/toggle', [AlertController::class, 'toggle'])->name('alerts.toggle');
+        Route::post('/alerts/{alert}/evaluate', [AlertController::class, 'evaluate'])->name('alerts.evaluate');
+        Route::delete('/alerts/{alert}', [AlertController::class, 'destroy'])->name('alerts.destroy');
+
+        Route::get('/activity', ActivityController::class)->name('activity.index');
 
         // Data
         Route::get('/sources', [DataSourceController::class, 'index'])->name('sources.index');

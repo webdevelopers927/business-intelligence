@@ -248,14 +248,17 @@ Identifiers must exist in the `MetricRegistry` (base or other custom metrics, cy
 - **Audit:** `AuditLogger::record(action, subject, meta)`; `Redactor` strips keys matching `/password|secret|token|key|credential/i` recursively before persistence. Login recorded via the `Login` event listener.
 
 ## 11. AI analyst (V1)
-- Provider: Anthropic Messages API with tool use, via Laravel `Http` (no SDK dependency). Model id from `ORBIT_AI_MODEL`; the default is chosen in Phase 7 against current Anthropic documentation.
-- Tools exposed to the model (JSON-schema): `get_metric`, `breakdown`, `compare_periods`, `top_items`, `list_anomalies`, `forecast`. Each tool validates args into an `AnalyticsQuery` and runs inside the requester's tenant context and permissions. There is no SQL tool.
-- The response shows the model's prose plus an **Evidence** panel rendered from the actual tool results; forecast-derived figures are tagged "Estimate".
-- No key → `AiConfiguration::status()` = `unconfigured` → configuration screen.
+- Provider: Claude via the **official Anthropic PHP SDK** (`anthropic-ai/sdk` ^1.6, D-13) behind an `LlmClient` interface (`AnthropicLlmClient`; tests bind a scripted fake). Default model `claude-opus-5-5` (`ORBIT_AI_MODEL`), effort `medium` set explicitly (`ORBIT_AI_EFFORT`); adaptive thinking is always on for this model, so no `thinking` parameter is sent. Server-side refusal fallback is enabled (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`) so a policy decline is retried on Anthropic's recommended fallback model inside the same call.
+- Manual tool loop in `AiAnalyst` (max `ORBIT_AI_MAX_TOOL_ROUNDS`, default 8; the last round sends `tool_choice: none` to force an answer). Tools (`AnalystTools`, JSON schema, `additionalProperties: false`): `get_metrics`, `compare_periods`, `breakdown` (also bottom-N via `order: asc`), `trend`, `list_anomalies`, `forecast`. Every argument is validated (metric keys against the registry, ISO dates, ≤ 3-year spans, branch/category ids checked against the organization's own rows); errors go back to the model as `is_error` tool results. All tools run through AnalyticsEngine/Insights inside the requester's tenant context. There is no SQL tool.
+- Transcripts are stored in API wire format and **replayed verbatim** on follow-up questions (append-only; thinking blocks and signatures round-trip unchanged). Refused or cut-off exchanges are shown but not replayed, so the history never contains an unanswered tool call.
+- Prompt caching: the stable system block (rules + metric catalog + branches/categories + data coverage) carries a breakpoint; today's date sits in a second, uncached system block; top-level `cache_control` caches the growing conversation across tool rounds. Tool definitions are deterministic.
+- The response shows the model's prose (rendered as safe text blocks, never HTML) plus an **Evidence** panel rendered from the actual tool results; forecast evidence is tagged "Estimate". The system prompt requires every figure to come from a tool result and marks tool content as data, not instructions.
+- No key → `AiConfiguration::status()` = `unconfigured` → configuration screen (instructions for owners/admins). Provider errors map to user-safe messages (`AiUnavailable`) and leave no half-written conversation. Per-user limit `ORBIT_AI_HOURLY_LIMIT` (default 30/h). Conversations are private to their author.
 
 ## 12. Anomalies & forecasting (V1)
-- `AnomalyDetector`: daily series, trailing window N=28 (configurable), weekday-aware mean/σ (compare Mondays to Mondays when ≥ 8 weeks of data), |z| ≥ 2 = warning, ≥ 3 = critical; expected range = μ ± 2σ. Results stored in `anomalies` table by a nightly job for the last 90 days.
-- `Forecaster`: moving average (3/6 month), OLS linear trend, seasonal-naive with trend adjustment when ≥ 24 months exist; returns point + simple band (± 1.96 × residual σ) and the method label.
+- `AnomalyDetector` (pure): z-score against a baseline. **Daily series** (revenue, orders) compare each day with the same weekday over up to 8 previous weeks and need ≥ 4 such values — a mixed-weekday baseline flags every normal Saturday, so nothing is reported before that. **Monthly series** (operating expenses) use the previous 12 months (≥ 6 values): expenses are booked in lumps (rent, payroll at month end), so a daily check would flag every pay day. |z| ≥ 2 = warning, ≥ 3 = critical (`ORBIT_ANOMALY_*_Z`); expected range = μ ± 2σ; flat baselines are never flagged.
+- `AnomalyService` scans the last 90 complete days / last 3 complete months, writes `anomalies` idempotently (cleared when they no longer hold), and names the branch that drove each deviation (its own same-baseline gap, shown when it explains ≥ 25 %). Periods before a metric's data begins (`Coverage::start`, per fact) are "no data", not zero. `insights:detect-anomalies` runs nightly at 02:00 per organization; "Scan now" for analysts and up.
+- `Forecaster` (pure): moving average (3/6 month), OLS linear trend, seasonal-naive with year-over-year growth when ≥ 24 months exist; `auto` picks the method with the lowest error back-tested on the last 3 known months. Band = point ± 1.96 × residual σ × √h (uncertainty grows with the horizon). `ForecastService` uses complete months only (≤ 36), floors only quantities that can't be negative (revenue, expenses, orders, units), and always returns the method label and back-test error.
 
 ## 13. Frontend architecture
 
@@ -295,6 +298,7 @@ resources/js/
 | D-10 | Fortify for auth backend | Security-sensitive flows from a maintained first-party package; we own all UI. |
 | D-11 | Sanctum deferred | No token API consumers yet; same-origin session auth covers Inertia + JSON endpoints. Added when a public API is introduced. |
 | D-12 | Polling for import progress | 1.5 s polling is adequate for a progress bar and needs no websocket server. |
+| D-13 | Official Anthropic PHP SDK for the AI analyst (supersedes the raw-`Http` plan in §11) | Typed errors, retries and current API features (refusal fallbacks) without hand-maintaining request shapes; wrapped behind `LlmClient` so tests and a future provider swap don't touch the analyst loop. |
 
 ## 15. Risks
 

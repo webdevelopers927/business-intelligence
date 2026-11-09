@@ -74,20 +74,25 @@ All app routes live under `/app/{organization:slug}` and pass through `auth`, `v
 | GET | `/metrics` | `metrics/Index` | any |
 | GET/POST/PATCH/DELETE | `/metrics…` | `metrics/Form` | metrics.manage |
 | POST | `/metrics/preview` | JSON formula validation + value | metrics.manage |
-| GET | `/reports` | `reports/Index` (saved + recent runs) | any |
-| GET | `/reports/new?type=` | `reports/Builder` | reports.create |
-| GET | `/reports/{report}` | `reports/Builder` (saved) | any |
-| POST/PATCH/DELETE | `/reports…` | save | reports.create |
-| GET | `/reports/preview` | JSON paginated preview | any |
-| POST | `/reports/export` | sync stream or queued run | reports.export |
-| GET | `/report-runs/{run}/download` | signed | reports.export |
-| GET | `/insights` | `insights/Index` (anomalies + forecasts) | any |
-| GET | `/assistant` | `assistant/Index` (AI or config state) | ai.use |
-| POST | `/assistant/messages` | JSON | ai.use |
+| GET | `/reports` | `reports/Index` (catalog, saved, recent exports) | reports.export (all roles) |
+| GET | `/reports/new?type=` | `reports/Builder` | reports.export |
+| GET | `/reports/{report}` | `reports/Builder` (saved) | reports.export |
+| POST | `/reports` | save | reports.create |
+| PATCH/DELETE | `/reports/{report}` | update / delete | author or owner/admin |
+| PUT/DELETE | `/reports/{report}/schedule` | schedule / unschedule | author or owner/admin |
+| POST | `/reports/preview` | JSON paginated preview | reports.export |
+| POST | `/reports/export` | JSON: download URL (inline) or queued | reports.export |
+| GET | `/reports/runs/{run}/download` | file (tenant-scoped; 410 if expired) | reports.export |
+| GET | `/insights?metric&severity&forecast&method&horizon` | `insights/Index` (anomalies + forecasts; deferred group `charts`) | any |
+| POST | `/insights/scan` | re-run anomaly detection | metrics.manage |
+| GET | `/assistant`, `/assistant/{conversation}` | `assistant/Index` (AI or config state; own conversations only) | ai.use |
+| POST | `/assistant/messages` | JSON `{message, conversation_id?}` → messages + evidence; `throttle:ai` | ai.use |
+| DELETE | `/assistant/{conversation}` | delete own conversation | ai.use |
 | **Monitoring** ||||
-| GET | `/alerts` | `alerts/Index` | any |
+| GET | `/alerts` | `alerts/Index` | alerts.manage |
 | GET/POST/PATCH/DELETE | `/alerts…` | `alerts/Form` | alerts.manage |
-| GET | `/alerts/{alert}` | `alerts/Show` (execution history) | any |
+| GET | `/alerts/{alert}` | `alerts/Show` (execution history) | alerts.manage |
+| POST | `/alerts/{alert}/evaluate`, `/alerts/{alert}/toggle` | check now / pause–enable | alerts.manage |
 | GET | `/notifications` | JSON list; POST `/notifications/read` | any |
 | GET | `/activity` | `activity/Index` (audit log) | audit.view |
 | **Settings** ||||

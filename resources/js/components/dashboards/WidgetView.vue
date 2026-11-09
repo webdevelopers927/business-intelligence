@@ -107,8 +107,10 @@ function chartOption(theme: ChartTheme) {
         };
     }
 
-    // Horizontal bar breakdown.
+    // Horizontal bar breakdown. Products share one hue; for dimensions with color
+    // slots, rows without one (Head office, Unassigned) are neutral gray.
     const rows = d.kind === 'breakdown' ? [...d.rows].reverse() : [];
+    const barColor = (t: ChartTheme, index: number | null) => (d.kind === 'breakdown' && d.dimension === 'product' ? t.series[0]! : seriesColor(t, index));
     return {
         ...base,
         grid: { ...base.grid, right: 56, top: 4 },
@@ -118,7 +120,7 @@ function chartOption(theme: ChartTheme) {
         series: [{
             type: 'bar',
             barMaxWidth: 18,
-            data: rows.map((r) => ({ value: r.values[d.metric.key], itemStyle: { color: r.color_index !== null ? seriesColor(theme, r.color_index) : theme.series[0], borderRadius: [0, 3, 3, 0] } })),
+            data: rows.map((r) => ({ value: r.values[d.metric.key], itemStyle: { color: barColor(theme, r.color_index), borderRadius: [0, 3, 3, 0] } })),
             label: { show: true, position: 'right', color: theme.text, fontSize: 11, formatter: (p: { value: number }) => fmt(p.value, true) },
         }],
     };
@@ -219,9 +221,9 @@ const sparkPath = computed(() => {
                     </thead>
                     <tbody v-if="data.kind === 'breakdown'" class="divide-y divide-border">
                         <tr v-for="row in data.rows" :key="row.id" class="h-8">
-                            <td class="max-w-0 truncate pr-2">{{ row.label }}</td>
-                            <td class="num text-right">{{ fmt(row.values[data.metric.key]) }}</td>
-                            <td v-if="widget.config.comparison" class="text-right"><DeltaBadge :change="change(row.values[data.metric.key], row.previous?.[data.metric.key])" :polarity="data.metric.polarity" /></td>
+                            <td class="w-full max-w-0 truncate pr-2" :title="row.label">{{ row.label }}</td>
+                            <td class="num pl-3 text-right whitespace-nowrap">{{ fmt(row.values[data.metric.key]) }}</td>
+                            <td v-if="widget.config.comparison" class="pl-3 text-right whitespace-nowrap"><DeltaBadge :change="change(row.values[data.metric.key], row.previous?.[data.metric.key])" :polarity="data.metric.polarity" /></td>
                         </tr>
                     </tbody>
                     <tbody v-else-if="data.kind === 'series'" class="divide-y divide-border">

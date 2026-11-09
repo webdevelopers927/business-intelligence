@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Domain\Analytics\AnalyticsCache;
+use App\Domain\Insights\AnomalyService;
 use App\Domain\Tenancy\TenantContext;
 use App\Enums\Industry;
 use App\Enums\OrganizationSize;
@@ -109,6 +110,11 @@ class NexoraDemoSeeder extends Seeder
         app(AnalyticsCache::class)->bump($this->orgId);
 
         $this->call(NexoraDashboardsSeeder::class);
+        $this->call(NexoraReportsSeeder::class);
+
+        // Populate Insights immediately instead of waiting for the nightly scan.
+        $org = Organization::query()->findOrFail($this->orgId);
+        app(TenantContext::class)->runAs($org, fn () => app(AnomalyService::class)->scan());
     }
 
     private function step(string $label, callable $callback): void

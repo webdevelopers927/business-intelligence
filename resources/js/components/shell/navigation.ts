@@ -1,4 +1,4 @@
-import { Building2, Compass, Database, FileUp, LayoutDashboard, LayoutGrid, type LucideIcon, Sigma, Users } from 'lucide-vue-next';
+import { BellRing, Building2, Compass, Database, FileText, FileUp, History, LayoutDashboard, Lightbulb, LayoutGrid, type LucideIcon, Sigma, Sparkles, Users } from 'lucide-vue-next';
 import type { Permission } from '@/types/domain';
 
 export interface NavItem {
@@ -31,7 +31,19 @@ export const primaryNavigation: NavGroup[] = [
     },
     {
         label: 'Analysis',
-        items: [{ label: 'Metrics', route: 'metrics.index', match: 'metrics.*', icon: Sigma }],
+        items: [
+            { label: 'Metrics', route: 'metrics.index', match: 'metrics.*', icon: Sigma },
+            { label: 'Reports', route: 'reports.index', match: 'reports.*', icon: FileText, permission: 'reports.export' },
+            { label: 'Insights', route: 'insights.index', match: 'insights.*', icon: Lightbulb },
+            { label: 'Assistant', route: 'assistant.index', match: 'assistant.*', icon: Sparkles, permission: 'ai.use' },
+        ],
+    },
+    {
+        label: 'Monitoring',
+        items: [
+            { label: 'Alerts', route: 'alerts.index', match: 'alerts.*', icon: BellRing, permission: 'alerts.manage' },
+            { label: 'Activity', route: 'activity.index', match: 'activity.*', icon: History, permission: 'audit.view' },
+        ],
     },
     {
         label: 'Data',

@@ -21,6 +21,7 @@ composer require laravel/fortify:^1.25                     # auth backend (D-10)
 composer require tightenco/ziggy:^2.4                      # named routes in TS
 composer require openspout/openspout:^4.28                 # streaming CSV/XLSX (D-08)   — Phase 3
 composer require barryvdh/laravel-dompdf:^3.1              # PDF export                  — Phase 6
+composer require anthropic-ai/sdk:^1.6                     # AI analyst (D-13)           — Phase 7
 composer require --dev pestphp/pest:^3.8 pestphp/pest-plugin-laravel:^3.2
 composer require --dev larastan/larastan:^3.4              # static analysis
 # laravel/pint ships with the skeleton
@@ -125,17 +126,74 @@ Original task list:
 4.1 DateRange/Period presets + previous period · 4.2 MetricRegistry + base metrics · 4.3 AnalyticsEngine (per-fact aggregation, derived metrics, gap fill, comparison) · 4.4 AnalyticsCache (version bump) · 4.5 Executive dashboard (KPI strip, 6 panels, deferred props, filter bar, URL state) · 4.6 EChart wrapper + theme + table view · 4.7 Explore drill-down · 4.8 rule-based Insights (largest movers, target attainment).
 Tests: revenue/COGS/gross/net/opex against hand-computed fixtures, each preset's range and previous range (incl. month-to-date alignment, leap years), ÷0 → null, branch/category filters, gap filling, cache invalidation after import, tenant isolation of aggregates.
 
-### Phase 5 — Dashboard builder ⬜
+### Phase 5 — Dashboard builder ✅
+
+Delivered 2026-11-10. Verification: Pest 200 passed / 1,108 assertions (incl. 51 new formula/metric/dashboard tests) · Vitest 7 · Larastan L6 0 · Pint · vue-tsc 0 · ESLint 0 · headless-Edge end-to-end: real mouse drag of a widget → autosave → full reload restores the new position; add-widget dialog; share dialog; metric editor live preview and error state; light/dark, 1440/390 px; 0 browser errors.
+
+What shipped:
+- **Formula engine** (`App\Domain\Metrics\Formula`): hand-written lexer/recursive-descent parser over `+ - * / ( )`, numbers and metric identifiers; array AST walked by a 4-operator evaluator. Limits: 300 chars, 64 tokens, depth 16. ÷0 and missing data → null. No eval/SQL/JS ever.
+- **Custom metrics** join the same `MetricRegistry` as base metrics (request-scoped), evaluated in dependency order on top of cached base aggregates, so every consumer gets them and edits apply instantly. Validation: known references only, cycle detection, private/organization visibility, delete blocked while used by widgets or other metrics. Live preview over the last 30 days with the input values shown.
+- **Dashboards**: CRUD, rename, duplicate (private copy with widgets), soft delete, visibility (private / organization / specific members with view or edit), 12-column drag/resize grid (`grid-layout-plus`), debounced layout autosave with visible save state, server-side clamping to the grid and per-type minimum sizes.
+- **Widgets**: KPI (with sparkline), line, area, bar, pie, donut (with legend), table, ranked list. Config: metric, dimension (type × metric compatibility enforced client- and server-side), follow-dashboard or fixed date range, optional widget filters that override the dashboard filter for that dimension, comparison, item limit. Each widget loads independently with its own loading/empty/error states.
+- Demo: `NexoraDashboardsSeeder` (idempotent) adds three custom metrics and an organization-wide "Branch operations" dashboard.
+
+Decisions (logged):
+- Permissions: view = owner, organization-visible, shared-with, or org owner/admin (governance). Edit = owner, org owner/admin, or an **edit share held by someone who can build dashboards** (an edit share to a Viewer grants view only). Delete/share = owner or org owner/admin.
+- Widgets always resolve through their dashboard (`scopeBindings`): a widget id from another dashboard is a 404.
+- Layout editing is desktop-only (≥ 1024 px); smaller screens show a read-only stack in layout order.
+- Metric keys derive from names with `Str::slug(…, '_')` (`snake()` broke acronyms: "COGS share" → `c_o_g_s_share`).
+- Changing the reporting currency relabels amounts; values are not converted (the settings form now says so).
+
+Fixed during verification: the drag handle was a `<button>`, which interact.js ignores by default; the whole widget header is now the handle in edit mode. Donut/pie widgets lacked a legend. "Head office" bars used a branch color instead of neutral gray.
+
+Original task list:
 CRUD, duplicate, visibility + shares, widget config dialog (metric/dimension compatibility enforced), grid-layout-plus editing, debounced layout save, widget data endpoint, custom metrics (parser, evaluator, preview, editor).
 Tests: create, widget validation, layout persistence round-trip, share permissions (private/org/shared × roles), formula parser (valid, invalid tokens, cycles, ÷0), metric preview.
 
-### Phase 6 — Reports & monitoring ⬜
-Report types (7), builder (columns, sort, filters, preview), CSV/XLSX/PDF export, queued large exports + report_runs, schedules, alerts (metric + event), `alerts:evaluate`, executions history, notifications UI, audit log viewer.
-Tests: each report type query, export formats, queued export notification, alert conditions, transition-only notification (dedupe), resolution, audit redaction.
+### Phase 6 — Reports & monitoring ✅
 
-### Phase 7 — Advanced intelligence ⬜
-AnomalyDetector + nightly job + Insights page; Forecaster (MA, trend, seasonal-naive) labeled as estimates; AI analyst (tools over AnalyticsEngine, evidence panel, config state).
-Tests: anomaly z-score on synthetic series, forecast methods on known series, AI unconfigured state, AI tool argument validation & tenant scoping (HTTP faked).
+Delivered 2026-11-09. Verification: Pest 222 passed / 1,263 assertions (22 new report/alert/activity tests) · Vitest 7 · Larastan L6 0 · Pint · vue-tsc 0 · ESLint 0 · `npm run build` · headless-Edge walkthrough of every new screen (builder preview + header sort, real PDF download, schedule dialog, alert "Check now", activity log; light/dark, 1440/390 px, no horizontal overflow); 0 browser errors.
+
+What shipped:
+- **Seven report types** (`App\Domain\Reports\Types`): sales performance (row-level, cursor-streamed), revenue analysis, expense analysis, branch comparison, product performance, inventory summary, workforce overview. Each declares its columns, filters, default sort and range; no free-form SQL anywhere.
+- **Builder** (`reports/Builder`): type, period presets/custom range, branch/category filters, column picker, sort (also by clicking a header), live paginated preview (JSON, debounced, stale responses discarded).
+- **Exports**: CSV (UTF-8 BOM, raw numbers, formula-injection-safe text), XLSX (openspout), PDF (dompdf, branded, portrait/landscape by width, font subsetting, 2,000-row cap with a validation message pointing to CSV/Excel). Exports larger than `ORBIT_REPORT_QUEUE_THRESHOLD` rows (default 5,000) are queued; the requester gets an in-app + email notification with a download link. Every export is a `report_runs` row, re-downloadable and audited (`report.generated`).
+- **Saved reports + schedules**: daily / weekly / monthly at a local time; recipients must be organization members; the period is recalculated per run (e.g. "Last month"). `reports:run-scheduled` (every 5 min) advances `next_run_at` before running so a failure can't loop.
+- **Alerts**: metric thresholds (below / above / drops-by-% / rises-by-% over yesterday, 7 or 30 complete days, optional branch filter), failed imports, stale data sources. `alerts:evaluate` (every 5 min) evaluates due alerts per organization. State machine ok → triggered notifies **once**; staying triggered records history silently; recovery records "resolved". "Check now" on the alert page. Execution history with outcome, message, notified flag.
+- **Activity** (`/activity`, owner/admin): audit log with area / person / date filters; metadata is already redacted at write time.
+- Navigation: Reports (Analysis); Alerts and Activity (new Monitoring group). `composer dev` now also runs `schedule:work`.
+- Demo: `NexoraReportsSeeder` (idempotent) adds four saved reports (two scheduled) and five alerts, each evaluated once against the demo data (gross margin < 30 % genuinely triggers).
+
+Decisions (logged):
+- Viewers can preview and export (`reports.export`) but not save; saved reports are managed by their author or org owners/admins.
+- A background export always answers "queued — you'll be notified", even when a synchronous queue finished it instantly, so the UX doesn't depend on the queue driver.
+- Alert windows use complete days only (never a partial "today"); percentage conditions compare with the preceding window of equal length. Editing an alert resets it to ok so a still-breached condition notifies again.
+- Download filenames are stamped in the organization's time zone.
+
+Fixed during verification: `structuredClone` rejected Inertia's reactive props (builder never loaded its preview) → JSON copy; PDFs embedded full DejaVu fonts (~880 KB for 4 rows) → subsetting; filenames used UTC; percent-metric alert thresholds rendered as "30" instead of "30%".
+
+Not in this phase: export file retention/pruning (files stay on the local disk until a cleanup job is added in Phase 8).
+
+### Phase 7 — Advanced intelligence ✅
+
+Delivered 2026-11-09. Verification: Pest 249 passed / 1,420 assertions (11 new unit + 15 new feature tests) · Vitest 10 · Larastan L6 0 · Pint · vue-tsc 0 · ESLint 0 · `npm run build` · headless-Edge walkthrough (Insights anomalies + forecast, metric/horizon switching, Scan now, Assistant setup state for owner and viewer, 1440/390 px, dark mode); 0 browser errors. The live AI path is covered by tests with a scripted model; no paid API calls were made because no `ANTHROPIC_API_KEY` is configured.
+
+What shipped:
+- **Insights page** (`/insights`, every member): anomaly chart with critical/warning markers, list with actual vs expected range, deviation (coloured by business polarity), z-score and a plain-language explanation naming the branch that drove it; forecast panel (metric, method, 3/6/12 months) with history, dashed estimate, 95 % band, values table and back-test error, always badged "Estimate".
+- **Anomaly detection**: weekday-aware daily checks for revenue and orders, monthly checks for operating expenses (see ARCHITECTURE §12). On the Nexora data it finds 24 anomalies, including the mid-September Islamabad slump (orders) and September's expense spike (+25.6 %, 87 % from Islamabad).
+- **Forecasting**: four methods, auto-selected by back-test; seasonal-naive offered only with 24 months (Nexora has 18, so the UI says "needs more history").
+- **AI analyst** (`/assistant`, `ai.use`): Claude Opus 5.5 via the official PHP SDK, six validated read-only tools, evidence panel from tool output, verbatim transcript replay, refusal fallback, prompt caching, per-user hourly limit, private conversations, configuration state without a key (no canned answers).
+- `insights:detect-anomalies` nightly at 02:00; the demo seeder runs a scan so Insights is populated immediately.
+
+Decisions (logged):
+- D-13: official Anthropic PHP SDK instead of raw HTTP (ARCHITECTURE decision log).
+- Daily anomaly checks use same-weekday baselines only; operating expenses are checked monthly. Both choices remove systematic false positives seen on real data (every Saturday early in the history; every pay day).
+- Forecast bands widen with √h; only inherently non-negative quantities are floored at zero.
+- The analyst runs synchronously in the request (typically 5–30 s, progress shown); a queued/streaming variant can follow if answers grow longer.
+
+Fixed during verification: `updateOrCreate` on a `date` cast never matched on SQLite (stored as `Y-m-d 00:00:00`) → `whereDate`; history before a metric's own data began counted as zero months (revenue got two fake months from earlier expense data) → per-fact coverage; "Last scan 5 hours ago" (UTC string read as local time) → ISO-8601 with offset; expense deviations above expected shown green → polarity-aware colours; net-profit forecast band clipped at zero → unclipped.
+
+Not in this phase: anomaly notifications (alerts can already watch metrics); per-branch anomaly series.
 
 ### Phase 8 — Quality & deployment ⬜
 Security review (tenancy, SSRF, uploads, secrets, authz), N+1 audit (`Model::preventLazyLoading`), performance benchmarks vs NFRs, responsive pass, marketing site + real screenshots, Docker setup, `docs/DEPLOYMENT.md`, demo credentials in README.
@@ -151,10 +209,10 @@ Security review (tenancy, SSRF, uploads, secrets, authz), N+1 audit (`Model::pre
 | Analytics from real records | 4 | ✅ |
 | KPIs consistent | 4 | ✅ |
 | Charts respond to filters | 4 | ✅ |
-| Custom dashboards | 5 | ⬜ |
-| Layouts persist | 5 | ⬜ |
-| Reports generated & exported | 6 | ⬜ |
-| Alerts configured & evaluated | 6 | ⬜ |
+| Custom dashboards | 5 | ✅ |
+| Layouts persist | 5 | ✅ |
+| Reports generated & exported | 6 | ✅ |
+| Alerts configured & evaluated | 6 | ✅ |
 | Responsive interface | 8 | ⬜ |
 | Automated tests for key workflows | 2–8 | ⬜ |
 | Realistic, consistent demo data | 3 | ✅ |
@@ -170,7 +228,7 @@ Security review (tenancy, SSRF, uploads, secrets, authz), N+1 audit (`Model::pre
 | Analyst | `analyst@nexora.test` | `password` |
 | Viewer | `viewer@nexora.test` | `password` |
 
-Demo-only; seeder ref   uses to run when `APP_ENV=production`. Organization URL: `/app/nexora`. Rebuild with `php artisan migrate:fresh --seed`.
+Demo-only; seeder refuses to run when `APP_ENV=production`. Organization URL: `/app/nexora`. Rebuild with `php artisan migrate:fresh --seed`.
 
 ## Change log
 - 2026-11-08 — Phases 0–1 complete. MySQL adopted (D-01); SQLite during development (D-01a).
@@ -178,3 +236,6 @@ Demo-only; seeder ref   uses to run when `APP_ENV=production`. Organization URL:
 - 2026-11-09 — Phase 3 complete: data sources, CSV/XLSX import engine, Nexora demo dataset. Added openspout/openspout ^5.13 (D-08). Toolchain versions actually installed: Inertia 3 (not 2), Pest 4 (not 3), Larastan 3.14.
 - 2026-11-09 — Fix: signed-in users hitting /login crashed (Laravel's guest redirect called `route('dashboard')` without `{organization}`); now `redirectUsersTo('/app')` + regression test.
 - 2026-11-09 — Phase 4 complete: analytics engine, executive dashboard, explorer, insights. ECharts 5.6 (tree-shaken).
+- 2026-11-10 — Phase 5 complete: dashboard builder, widgets, sharing, custom metric formulas. Added grid-layout-plus ^1.1.1.
+- 2026-11-09 — Phase 6 complete: reports (7 types, CSV/XLSX/PDF, queued exports, schedules), alerts, activity log. Added barryvdh/laravel-dompdf ^3.1. `composer dev` runs the scheduler.
+- 2026-11-09 — Phase 7 complete: anomaly detection, forecasting, Insights page, AI analyst (Claude Opus 5.5). Added anthropic-ai/sdk ^1.6 (D-13).
